@@ -188,6 +188,7 @@ class Camera:
         obj.rect.y += self.dy
         obj.rect.x += self.dx
 
+
     # позиционировать камеру на объекте target
     def update(self, target):
         if player_pos[1] < 370:
