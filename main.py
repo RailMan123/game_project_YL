@@ -1,18 +1,24 @@
 import pygame
 import os
 import time
+import random
+import sys
 
 pygame.init()
-size = width, height = 1000, 700
-screen = pygame.display.set_mode(size)
-screen.fill((255, 255, 255))
-all_sprites = pygame.sprite.Group()
-fishes = pygame.sprite.Group()
-shark = pygame.sprite.Group()
+size = width, height = 1050, 750
+screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+screen.fill((0, 0, 255))
 ontime = 0
 running = True
 clock = pygame.time.Clock()
 speed = 10
+plants_row = (0, 1000)
+player_pos = ()
+
+
+def terminate():
+    pygame.quit()
+    sys.exit()
 
 
 def load_image(name, colorkey=None):
@@ -29,6 +35,7 @@ def load_image(name, colorkey=None):
 
 fon = pygame.transform.scale(load_image('background.jpg'), (width, height))
 screen.blit(fon, (0, 0))
+screen.blit(load_image('underwater_plants (1).png'), (0, 0))
 
 
 def cut_sheet(self, sheet, columns, rows, frames):
@@ -47,11 +54,11 @@ player = 0
 class Sharky(pygame.sprite.Sprite):
     def __init__(self, x, y):
         global player
+        global player_pos
         super().__init__(all_sprites)
         self.swimframes = []
         self.moveframes = []
         self.eatframes = []
-        self.rect = pygame.Rect((0, 0), (207, 85))
         for i in range(1, 6):
             sheet = load_image(f'bluesharkswim(' + str(i) + ').png', colorkey=-1)
             self.swimframes.append(sheet.subsurface(pygame.Rect(
@@ -61,7 +68,6 @@ class Sharky(pygame.sprite.Sprite):
             self.moveframes.append(sheet.subsurface(pygame.Rect(
                 (0, 0), sheet.get_rect().size)))
         cut_sheet(self, load_image('bluesharkeat.png', colorkey=-1), 2, 1, self.eatframes)
-        self.add(shark)
         self.cur_frame = 0
         self.image = self.swimframes[self.cur_frame]
         self.rect = self.rect.move(x, y)
@@ -69,6 +75,7 @@ class Sharky(pygame.sprite.Sprite):
         self.count = 0
         self.mask = pygame.mask.from_surface(self.image)
         self.mov = 0
+        player_pos = (player.rect.x + player.rect.w // 2, player.rect.y + player.rect.h // 2)
 
     def update(self):
         self.count += 1
@@ -94,11 +101,19 @@ class Sharky(pygame.sprite.Sprite):
 
 
 class Fish(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, type):
         super().__init__(all_sprites)
         self.add(fishes)
         self.swimframes = []
-        cut_sheet(self, load_image('yellowfishswim.png', colorkey=-1), 6, 1, self.swimframes)
+        if type == 'yellowfish':
+            self.type = 'yellow'
+            cut_sheet(self, load_image('yellowfishswim.png', colorkey=-1), 6, 1, self.swimframes)
+            self.swimstyle = [1, 0]
+        elif type == 'goldfish':
+            self.type = 'gold'
+            cut_sheet(self, load_image('goldfishswim.png', colorkey=-1), 6, 1, self.swimframes)
+            self.swimstyle = [-1, 0]
+
         self.cur_frame = 0
         self.image = self.swimframes[self.cur_frame]
         self.rect = self.rect.move(x, y)
@@ -106,15 +121,24 @@ class Fish(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
+        global gold
         self.count += 1
         if pygame.sprite.collide_mask(self, player):
-            if player.mov <= 4:
+            if self.rect.x > player.rect.x + player.rect.w:
                 player.image = player.eatframes[0]
                 player.image = player.eatframes[1]
-            else:
+            elif self.rect.x < player.rect.x:
                 player.image = pygame.transform.flip(player.eatframes[0], 90, 0)
                 player.image = pygame.transform.flip(player.eatframes[1], 90, 0)
+            else:
+                if player.mov <= 4:
+                    player.image = player.eatframes[0]
+                    player.image = player.eatframes[1]
+                else:
+                    player.image = pygame.transform.flip(player.eatframes[0], 90, 0)
+                    player.image = pygame.transform.flip(player.eatframes[1], 90, 0)
             self.kill()
+            gold += 1
             for i in range(len(player.swimframes)):
                 player.swimframes[i] = pygame.transform.smoothscale(player.swimframes[i],
                                                                     (player.swimframes[i].get_width(),
@@ -122,8 +146,35 @@ class Fish(pygame.sprite.Sprite):
 
         if self.count == 20:
             self.cur_frame = (self.cur_frame + 1) % len(self.swimframes)
-            self.image = self.swimframes[self.cur_frame]
+            if self.swimstyle[0] < 0:
+                self.image = pygame.transform.flip(self.swimframes[self.cur_frame], 90, 0)
+            else:
+                self.image = self.swimframes[self.cur_frame]
             self.count = 0
+
+        S = (((player.rect.x + player.rect.w // 2) - (self.rect.x + self.rect.w // 2)) ** 2
+             + ((player.rect.y + player.rect.h // 2) - (self.rect.y + self.rect.h // 2)) ** 2) ** 0.5
+        if S <= 200 and self.swimstyle[1] == 0:
+            self.swimstyle = [random.randint(-1, 1), random.randint(-1, 1)]
+        if S >= 500 and self.swimstyle[1] != 0:
+            self.swimstyle = [random.randint(-1, 1), 0]
+
+        self.rect.x += self.swimstyle[0]
+        self.rect.y += self.swimstyle[1]
+
+
+class Plant(pygame.sprite.Sprite):
+    def __init__(self, x, y, type):
+        super().__init__(all_sprites)
+        self.add(plants)
+        self.cur_frame = 0
+        self.image = load_image(f'underwater_plants ({type}).png', -1)
+        self.rect = self.image.get_rect()
+        self.rect = self.rect.move(x, height - self.rect.h)
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self):
+        pass
 
 
 class Camera:
@@ -139,60 +190,189 @@ class Camera:
 
     # позиционировать камеру на объекте target
     def update(self, target):
-        self.dx = -(target.rect.x + target.rect.w // 2 - width // 2)
-        self.dy = -(target.rect.y + target.rect.h // 2 - height // 2)
+        if player_pos[1] < 370:
+            self.dx = -(target.rect.x + target.rect.w // 2 - width // 2)
+            self.dy = 0
+        else:
+            self.dx = -(target.rect.x + target.rect.w // 2 - width // 2)
+            self.dy = -(target.rect.y + target.rect.h // 2 - height // 2)
 
 
-speed = 100
+all_sprites = pygame.sprite.Group()
+fishes = pygame.sprite.Group()
+plants = pygame.sprite.Group()
+FPS = 100
 motion = 'STOP'
-Sharky(200, 200)
+Sharky(width // 2 - 103, height // 2 - 42)
 direct = 1
 camera = Camera()
 camera.update(player)
+for i in range(100, -100, -1):
+    Plant(i * 40, 0, random.randint(1, 9))
+monet = load_image('monet.png', -1)
+monet = pygame.transform.scale(monet, (50, 50))
+gold = 0
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT:
-                motion = 'LEFT'
+                if motion == 'UP':
+                    motion = 'LEFTUP'
+                elif motion == 'DOWN':
+                    motion = 'LEFTDOWN'
+                else:
+                    motion = 'LEFT'
+
             elif event.key == pygame.K_RIGHT:
-                motion = 'RIGHT'
+                if motion == 'UP':
+                    motion = 'RIGHTUP'
+                elif motion == 'DOWN':
+                    motion = 'RIGHTDOWN'
+                else:
+                    motion = 'RIGHT'
+
             elif event.key == pygame.K_UP:
-                motion = 'UP'
+                if motion == 'LEFT':
+                    motion = 'LEFTUP'
+                elif motion == 'RIGHT':
+                    motion = 'RIGHTUP'
+                else:
+                    motion = 'UP'
+
             elif event.key == pygame.K_DOWN:
-                motion = 'DOWN'
+                if motion == 'LEFT':
+                    motion = 'LEFTDOWN'
+                elif motion == 'RIGHT':
+                    motion = 'RIGHTDOWN'
+                else:
+                    motion = 'DOWN'
+
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            Fish(event.pos[0], event.pos[1])
+            if event.button == 1:
+                Fish(event.pos[0], event.pos[1], 'yellowfish')
+            elif event.button == 2:
+                Fish(event.pos[0], event.pos[1], 'goldfish')
+
         elif event.type == pygame.KEYUP:
-            if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
-                motion = 'STOP'
+            if event.key == pygame.K_LEFT:
+                if motion == 'LEFT':
+                    motion = 'STOP'
+                elif motion == 'LEFTDOWN':
+                    motion = 'DOWN'
+                elif motion == 'LEFTUP':
+                    motion = 'UP'
+                else:
+                    pass
+            elif event.key == pygame.K_RIGHT:
+                if motion == 'RIGHT':
+                    motion = 'STOP'
+                elif motion == 'RIGHTDOWN':
+                    motion = 'DOWN'
+                elif motion == 'RIGHTUP':
+                    motion = 'UP'
+                else:
+                    pass
+            elif event.key == pygame.K_UP:
+                if motion == 'UP':
+                    motion = 'STOP'
+                elif motion == 'RIGHTUP':
+                    motion = 'RIGHT'
+                elif motion == 'LEFTUP':
+                    motion = 'LEFT'
+                else:
+                    pass
+            elif event.key == pygame.K_DOWN:
+                if motion == 'DOWN':
+                    motion = 'STOP'
+                elif motion == 'RIGHTDOWN':
+                    motion = 'RIGHT'
+                elif motion == 'LEFTDOWN':
+                    motion = 'LEFT'
+                else:
+                    pass
 
     if motion == 'LEFT':
         if player.mov < 9:
             player.movement(-1)
         else:
             player.rect.x -= 3
+            player_pos = (player_pos[0] - 3, player_pos[1])
             camera.update(player)
             player.move()
+
     elif motion == 'RIGHT':
         if player.mov > 0:
             player.movement(1)
         else:
             player.rect.x += 3
+            player_pos = (player_pos[0] + 3, player_pos[1])
             camera.update(player)
             player.move()
-    elif motion == 'DOWN':
+
+    elif motion == 'DOWN' and player_pos[1] > 60:
         player.rect.y += 3
-        camera.update(player)
-        player.move()
+        player_pos = (player_pos[0], player_pos[1] - 3)
+        if player_pos[1] < 370:
+            pass
+        else:
+            camera.update(player)
+            player.move()
+
     elif motion == 'UP':
         player.rect.y -= 3
-        camera.update(player)
-        player.move()
+        player_pos = (player_pos[0], player_pos[1] + 3)
+        if player_pos[1] < 370:
+            pass
+        else:
+            camera.update(player)
+            player.move()
 
+    elif motion == 'RIGHTUP':
+        if player.mov > 0:
+            player.movement(1)
+        else:
+            player.rect.x += 2
+            player.rect.y -= 2
+            player_pos = (player_pos[0] + 2, player_pos[1] + 2)
+            camera.update(player)
+            player.move()
+    elif motion == 'RIGHTDOWN':
+        if player.mov > 0:
+            player.movement(1)
+        else:
+            player.rect.x += 2
+            player.rect.y += 2
+            player_pos = (player_pos[0] + 2, player_pos[1] - 2)
+            camera.update(player)
+            player.move()
+    elif motion == 'LEFTUP':
+        if player.mov < 9:
+            player.movement(-1)
+        else:
+            player.rect.x -= 2
+            player.rect.y -= 2
+            player_pos = (player_pos[0] - 2, player_pos[1] + 2)
+            camera.update(player)
+            player.move()
+    elif motion == 'LEFTDOWN':
+        if player.mov < 9:
+            player.movement(-1)
+        else:
+            player.rect.x -= 2
+            player.rect.y += 2
+            player_pos = (player_pos[0] - 2, player_pos[1] - 2)
+            camera.update(player)
+            player.move()
+
+    screen.fill((0, 0, 255))
     screen.blit(fon, (0, 0))
+    screen.blit(monet, (990, 10))
+    font = pygame.font.Font(None, 70)
+    text = font.render(f"{gold}", 1, (255, 255, 0))
+    screen.blit(text, (1000 - len(str(gold)) * 30, 10))
     all_sprites.draw(screen)
     all_sprites.update()
     pygame.display.flip()
-    clock.tick(speed)
+    clock.tick(FPS)
