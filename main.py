@@ -51,6 +51,7 @@ monet = load_image('monet.png', -1)
 monet = pygame.transform.scale(monet, (50, 50))
 fon = pygame.transform.scale(load_image('background.jpg'), (width, height))
 screen.blit(fon, (0, 0))
+above_fon = pygame.transform.scale(load_image('aboveground.jpg'), (width, height))
 
 
 def cut_sheet(self, sheet, columns, rows, frames):
@@ -123,15 +124,18 @@ class Fish(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.add(fishes)
         self.swimframes = []
+        self.y = player_pos[1] + (480 - y)
         if type == 'yellowfish':
             self.type = 'yellow'
             cut_sheet(self, load_image('yellowfishswim.png', colorkey=-1), 6, 1, self.swimframes)
-            self.swimstyle = [1, 0]
         elif type == 'goldfish':
             self.type = 'gold'
             cut_sheet(self, load_image('goldfishswim.png', colorkey=-1), 6, 1, self.swimframes)
-            self.swimstyle = [-1, 0]
+        elif type == 'tuna':
+            self.type = 'tuna'
+            cut_sheet(self, load_image('tuna_sprite.png', colorkey=-1), 8, 1, self.swimframes)
 
+        self.swimstyle = [random.choice([0.75, 1, 1.25, 1.5, 0.5, -0.75, -1, -1.25, -1.5, -0.5]), 0]
         self.cur_frame = 0
         self.image = self.swimframes[self.cur_frame]
         self.rect = self.rect.move(x, y)
@@ -155,12 +159,16 @@ class Fish(pygame.sprite.Sprite):
                 else:
                     player.image = pygame.transform.flip(player.eatframes[0], 90, 0)
                     player.image = pygame.transform.flip(player.eatframes[1], 90, 0)
+            if self.type == 'gold':
+                player.health += 2500
+                gold += 4
+            elif self.type == 'yellow':
+                player.health += 1500
+                gold += 2
+            elif self.type == 'tuna':
+                player.health += 4000
+                gold += 6
             self.kill()
-            gold += 1
-            for i in range(len(player.swimframes)):
-                player.swimframes[i] = pygame.transform.smoothscale(player.swimframes[i],
-                                                                    (player.swimframes[i].get_width(),
-                                                                     player.swimframes[i].get_height()))
 
         if self.count == 20:
             self.cur_frame = (self.cur_frame + 1) % len(self.swimframes)
@@ -172,13 +180,26 @@ class Fish(pygame.sprite.Sprite):
 
         S = (((player.rect.x + player.rect.w // 2) - (self.rect.x + self.rect.w // 2)) ** 2
              + ((player.rect.y + player.rect.h // 2) - (self.rect.y + self.rect.h // 2)) ** 2) ** 0.5
+        if S > 4000:
+            self.kill()
         if S <= 200 and self.swimstyle[1] == 0:
-            self.swimstyle = [random.randint(-1, 1), random.randint(-1, 1)]
-        if S >= 500 and self.swimstyle[1] != 0:
-            self.swimstyle = [random.randint(-1, 1), 0]
+            if player.rect.x < self.rect.x and player.rect.y < self.rect.y:
+                self.swimstyle = [random.choice([1.5, 1, 1.75, 2]), random.choice([1.5, 1, 1.75, 2])]
+            elif player.rect.x < self.rect.x and player.rect.y > self.rect.y:
+                self.swimstyle = [random.choice([1.5, 1, 1.75, 2]), random.choice([-1.5, -1, -1.75, -2])]
+            elif player.rect.x > self.rect.x and player.rect.y > self.rect.y:
+                self.swimstyle = [random.choice([-1.5, -1, -1.75, -2]), random.choice([-1.5, -1, -1.75, -2])]
+            elif player.rect.x > self.rect.x and player.rect.y < self.rect.y:
+                self.swimstyle = [random.choice([-1.5, -1, -1.75, -2]), random.choice([1.5, 1, 1.75, 2])]
 
-        self.rect.x += self.swimstyle[0]
-        self.rect.y += self.swimstyle[1]
+        if S >= 500 and self.swimstyle[1] != 0:
+            self.swimstyle = [random.choice([0.75, 1, 1.25, 1.5, 0.5, -0.75, -1, -1.25, -1.5, -0.5]), 0]
+        if S + player_pos[1] > 950 or player_pos[1] - S < 40:
+            self.rect.x += self.swimstyle[0]
+        else:
+            self.rect.x += self.swimstyle[0]
+            self.y += self.swimstyle[1]
+            self.rect.y += self.swimstyle[1]
 
 
 class Plant(pygame.sprite.Sprite):
@@ -226,11 +247,13 @@ def main():
     running = True
     FPS = 100
     motion = 'STOP'
+    schet = 0
     Sharky(width // 2 - 103, height // 2 - 42)
     camera.update(player)
     for i in range(100, -100, -1):
         Plant(i * 40, 0, random.randint(1, 9))
     speed = player.speedlevel + 1
+    minmax = [-1000, 1000]
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -342,21 +365,26 @@ def main():
                 player.move()
 
         elif motion == 'UP':
-            player.rect.y -= speed
-            player_pos = (player_pos[0], player_pos[1] + speed)
-            if player_pos[1] < 370:
-                pass
-            else:
-                camera.update(player)
-                player.move()
+            if player_pos[1] < 1000:
+                player.rect.y -= speed
+                player_pos = (player_pos[0], player_pos[1] + speed)
+                if player_pos[1] < 370:
+                    pass
+                else:
+                    camera.update(player)
+                    player.move()
 
         elif motion == 'RIGHTUP':
             if player.mov > 0:
                 player.movement(1)
             else:
-                player.rect.x += speed
-                player.rect.y -= speed
-                player_pos = (player_pos[0] + speed, player_pos[1] + speed)
+                if player_pos[1] < 1000:
+                    player.rect.x += speed
+                    player.rect.y -= speed
+                    player_pos = (player_pos[0] + speed, player_pos[1] + speed)
+                else:
+                    player.rect.y -= speed
+                    player_pos = (player_pos[0] + speed, player_pos[1])
                 camera.update(player)
                 player.move()
         elif motion == 'RIGHTDOWN':
@@ -372,11 +400,16 @@ def main():
             if player.mov < 9:
                 player.movement(-1)
             else:
-                player.rect.x -= speed
-                player.rect.y -= speed
-                player_pos = (player_pos[0] - speed, player_pos[1] + speed)
+                if player_pos[1] < 1000:
+                    player.rect.x -= speed
+                    player.rect.y -= speed
+                    player_pos = (player_pos[0] - speed, player_pos[1] + speed)
+                else:
+                    player.rect.x -= speed
+                    player_pos = (player_pos[0] - speed, player_pos[1])
                 camera.update(player)
                 player.move()
+
         elif motion == 'LEFTDOWN':
             if player.mov < 9:
                 player.movement(-1)
@@ -388,8 +421,39 @@ def main():
                 player.move()
 
         screen.fill((0, 0, 255))
-        screen.blit(fon, (0, 0))
-        screen.blit(monet, (990, 10))
+        if player_pos[1] + 320 > 1000:
+            screen.blit(above_fon, ((minmax[1]) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, ((minmax[1] + 1000) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, ((minmax[1] - 1000) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, (0 - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, ((minmax[0]) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, ((minmax[0] + 1000) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+            screen.blit(above_fon, ((minmax[0] - 1000) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
+
+            screen.blit(fon, ((minmax[1]) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, ((minmax[1] + 1000) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, ((minmax[1] - 1000) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, (0 - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, ((minmax[0]) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, ((minmax[0] + 1000) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+            screen.blit(fon, ((minmax[0] - 1000) - player_pos[0] + 560, 0 - (1000 - player_pos[1] - 320)))
+        else:
+            screen.blit(fon, ((minmax[1]) - player_pos[0] + 560, 0))
+            screen.blit(fon, ((minmax[1] + 1000) - player_pos[0] + 560, 0))
+            screen.blit(fon, ((minmax[1] - 1000) - player_pos[0] + 560, 0))
+            screen.blit(fon, (0 - player_pos[0] + 560, 0))
+            screen.blit(fon, ((minmax[0]) - player_pos[0] + 560, 0))
+            screen.blit(fon, ((minmax[0] + 1000) - player_pos[0] + 560, 0))
+            screen.blit(fon, ((minmax[0] - 1000) - player_pos[0] + 560, 0))
+
+        if player_pos[0] < minmax[0]:
+            minmax[0] -= 1000
+            minmax[1] -= 1000
+        if player_pos[0] > minmax[1]:
+            minmax[0] += 1000
+            minmax[1] += 1000
+
+        screen.blit(monet, (970, 10))
         font = pygame.font.Font(None, 60)
         text = font.render(f"{gold}", 1, (0, 0, 0))
         screen.blit(text, (1000 - len(str(gold)) * 30, 15))
@@ -397,6 +461,16 @@ def main():
         pygame.draw.rect(screen, (0, 255, 0), pygame.Rect(320, 50, 400 * (player.health / player.maxhealth), 20))
         pygame.draw.rect(screen, (255, 0, 0), pygame.Rect(320 + 400 * (player.health / player.maxhealth), 50,
                                                           400 - 400 * (player.health / player.maxhealth) + 5, 20))
+        schet += 1
+        if schet == 60:
+            a = random.choice([1, -1])
+            if a == -1:
+                Fish(random.randint(player_pos[0] - 700, player_pos[0] - 600), random.randint(50, 700),
+                     random.choice(['yellowfish', 'goldfish', 'tuna']))
+            else:
+                Fish(random.randint(player_pos[0] + 600, player_pos[0] + 700), random.randint(50, 700),
+                     random.choice(['yellowfish', 'goldfish', 'tuna']))
+            schet = 0
         if player.health == 0:
             again = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 365), (280, 50)))
             menu = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 425), (280, 50)))
