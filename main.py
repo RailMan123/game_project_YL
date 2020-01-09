@@ -602,7 +602,6 @@ def start_screen():
 
         pygame.display.flip()
 
-
 camera = Camera()
 file = open('stat_datas').read()
 file = file.split('\n')
