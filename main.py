@@ -1,6 +1,5 @@
 import pygame
 import os
-import time
 import random
 import sys
 
@@ -8,17 +7,31 @@ pygame.init()
 size = width, height = 1050, 750
 screen = pygame.display.set_mode(size, pygame.RESIZABLE)
 screen.fill((0, 0, 255))
-ontime = 0
-running = True
 clock = pygame.time.Clock()
-speed = 10
-plants_row = (0, 1000)
-player_pos = ()
+all_sprites = pygame.sprite.Group()
+fishes = pygame.sprite.Group()
+plants = pygame.sprite.Group()
+speedups = [20, 30, 40, 60, 80, 100]
+healthups = [20, 40, 60, 80, 100]
+FPS = 100
+player = 0
+player_pos = (0, 0)
 
 
 def terminate():
     pygame.quit()
     sys.exit()
+
+
+def dats_write():
+    global file
+    file = open('stat_datas', 'w')
+    file.write(str(gold) + '\n')
+    file.write(str(player.speedlevel) + '\n')
+    file.write(str(int(player.maxhealth / 10000)))
+    file.close()
+    for sprite in all_sprites:
+        sprite.kill()
 
 
 def load_image(name, colorkey=None):
@@ -33,9 +46,11 @@ def load_image(name, colorkey=None):
     return image
 
 
+button = load_image('button.png', -1)
+monet = load_image('monet.png', -1)
+monet = pygame.transform.scale(monet, (50, 50))
 fon = pygame.transform.scale(load_image('background.jpg'), (width, height))
 screen.blit(fon, (0, 0))
-screen.blit(load_image('underwater_plants (1).png'), (0, 0))
 
 
 def cut_sheet(self, sheet, columns, rows, frames):
@@ -48,9 +63,6 @@ def cut_sheet(self, sheet, columns, rows, frames):
                 frame_location, self.rect.size)))
 
 
-player = 0
-
-
 class Sharky(pygame.sprite.Sprite):
     def __init__(self, x, y):
         global player
@@ -59,6 +71,9 @@ class Sharky(pygame.sprite.Sprite):
         self.swimframes = []
         self.moveframes = []
         self.eatframes = []
+        file = open('stat_datas').read()
+        file = file.split('\n')
+        self.speedlevel = int(file[1])
         for i in range(1, 6):
             sheet = load_image(f'bluesharkswim(' + str(i) + ').png', colorkey=-1)
             self.swimframes.append(sheet.subsurface(pygame.Rect(
@@ -71,6 +86,8 @@ class Sharky(pygame.sprite.Sprite):
         self.cur_frame = 0
         self.image = self.swimframes[self.cur_frame]
         self.rect = self.rect.move(x, y)
+        self.health = int(file[2]) * 10000
+        self.maxhealth = int(file[2]) * 10000
         player = self
         self.count = 0
         self.mask = pygame.mask.from_surface(self.image)
@@ -79,6 +96,7 @@ class Sharky(pygame.sprite.Sprite):
 
     def update(self):
         self.count += 1
+        self.health -= 5
         if self.count == 25:
             self.cur_frame = (self.cur_frame + 1) % len(self.swimframes)
             if self.mov == 9:
@@ -188,7 +206,6 @@ class Camera:
         obj.rect.y += self.dy
         obj.rect.x += self.dx
 
-
     # позиционировать камеру на объекте target
     def update(self, target):
         if player_pos[1] < 370:
@@ -199,181 +216,323 @@ class Camera:
             self.dy = -(target.rect.y + target.rect.h // 2 - height // 2)
 
 
-all_sprites = pygame.sprite.Group()
-fishes = pygame.sprite.Group()
-plants = pygame.sprite.Group()
-FPS = 100
-motion = 'STOP'
-Sharky(width // 2 - 103, height // 2 - 42)
-direct = 1
-camera = Camera()
-camera.update(player)
-for i in range(100, -100, -1):
-    Plant(i * 40, 0, random.randint(1, 9))
-monet = load_image('monet.png', -1)
-monet = pygame.transform.scale(monet, (50, 50))
-gold = 0
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
-                if motion == 'UP':
-                    motion = 'LEFTUP'
-                elif motion == 'DOWN':
-                    motion = 'LEFTDOWN'
-                else:
-                    motion = 'LEFT'
+def main():
+    global player_pos
+    global gold
+    global file
+    file = open('stat_datas').read()
+    file = file.split('\n')
+    gold = int(file[0])
+    running = True
+    FPS = 100
+    motion = 'STOP'
+    Sharky(width // 2 - 103, height // 2 - 42)
+    camera.update(player)
+    for i in range(100, -100, -1):
+        Plant(i * 40, 0, random.randint(1, 9))
+    speed = player.speedlevel + 1
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                dats_write()
+                running = False
+                terminate()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:
+                    if motion == 'UP':
+                        motion = 'LEFTUP'
+                    elif motion == 'DOWN':
+                        motion = 'LEFTDOWN'
+                    else:
+                        motion = 'LEFT'
 
-            elif event.key == pygame.K_RIGHT:
-                if motion == 'UP':
-                    motion = 'RIGHTUP'
-                elif motion == 'DOWN':
-                    motion = 'RIGHTDOWN'
-                else:
-                    motion = 'RIGHT'
+                elif event.key == pygame.K_RIGHT:
+                    if motion == 'UP':
+                        motion = 'RIGHTUP'
+                    elif motion == 'DOWN':
+                        motion = 'RIGHTDOWN'
+                    else:
+                        motion = 'RIGHT'
 
-            elif event.key == pygame.K_UP:
-                if motion == 'LEFT':
-                    motion = 'LEFTUP'
-                elif motion == 'RIGHT':
-                    motion = 'RIGHTUP'
-                else:
-                    motion = 'UP'
+                elif event.key == pygame.K_UP:
+                    if motion == 'LEFT':
+                        motion = 'LEFTUP'
+                    elif motion == 'RIGHT':
+                        motion = 'RIGHTUP'
+                    else:
+                        motion = 'UP'
 
-            elif event.key == pygame.K_DOWN:
-                if motion == 'LEFT':
-                    motion = 'LEFTDOWN'
-                elif motion == 'RIGHT':
-                    motion = 'RIGHTDOWN'
-                else:
-                    motion = 'DOWN'
+                elif event.key == pygame.K_DOWN:
+                    if motion == 'LEFT':
+                        motion = 'LEFTDOWN'
+                    elif motion == 'RIGHT':
+                        motion = 'RIGHTDOWN'
+                    else:
+                        motion = 'DOWN'
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                Fish(event.pos[0], event.pos[1], 'yellowfish')
-            elif event.button == 2:
-                Fish(event.pos[0], event.pos[1], 'goldfish')
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    Fish(event.pos[0], event.pos[1], 'yellowfish')
+                elif event.button == 2:
+                    Fish(event.pos[0], event.pos[1], 'goldfish')
 
-        elif event.type == pygame.KEYUP:
-            if event.key == pygame.K_LEFT:
-                if motion == 'LEFT':
-                    motion = 'STOP'
-                elif motion == 'LEFTDOWN':
-                    motion = 'DOWN'
-                elif motion == 'LEFTUP':
-                    motion = 'UP'
-                else:
-                    pass
-            elif event.key == pygame.K_RIGHT:
-                if motion == 'RIGHT':
-                    motion = 'STOP'
-                elif motion == 'RIGHTDOWN':
-                    motion = 'DOWN'
-                elif motion == 'RIGHTUP':
-                    motion = 'UP'
-                else:
-                    pass
-            elif event.key == pygame.K_UP:
-                if motion == 'UP':
-                    motion = 'STOP'
-                elif motion == 'RIGHTUP':
-                    motion = 'RIGHT'
-                elif motion == 'LEFTUP':
-                    motion = 'LEFT'
-                else:
-                    pass
-            elif event.key == pygame.K_DOWN:
-                if motion == 'DOWN':
-                    motion = 'STOP'
-                elif motion == 'RIGHTDOWN':
-                    motion = 'RIGHT'
-                elif motion == 'LEFTDOWN':
-                    motion = 'LEFT'
-                else:
-                    pass
+            elif event.type == pygame.KEYUP:
+                if event.key == pygame.K_LEFT:
+                    if motion == 'LEFT':
+                        motion = 'STOP'
+                    elif motion == 'LEFTDOWN':
+                        motion = 'DOWN'
+                    elif motion == 'LEFTUP':
+                        motion = 'UP'
+                    else:
+                        pass
+                elif event.key == pygame.K_RIGHT:
+                    if motion == 'RIGHT':
+                        motion = 'STOP'
+                    elif motion == 'RIGHTDOWN':
+                        motion = 'DOWN'
+                    elif motion == 'RIGHTUP':
+                        motion = 'UP'
+                    else:
+                        pass
+                elif event.key == pygame.K_UP:
+                    if motion == 'UP':
+                        motion = 'STOP'
+                    elif motion == 'RIGHTUP':
+                        motion = 'RIGHT'
+                    elif motion == 'LEFTUP':
+                        motion = 'LEFT'
+                    else:
+                        pass
+                elif event.key == pygame.K_DOWN:
+                    if motion == 'DOWN':
+                        motion = 'STOP'
+                    elif motion == 'RIGHTDOWN':
+                        motion = 'RIGHT'
+                    elif motion == 'LEFTDOWN':
+                        motion = 'LEFT'
+                    else:
+                        pass
 
-    if motion == 'LEFT':
-        if player.mov < 9:
-            player.movement(-1)
-        else:
-            player.rect.x -= 3
-            player_pos = (player_pos[0] - 3, player_pos[1])
-            camera.update(player)
-            player.move()
+        if motion == 'LEFT':
+            if player.mov < 9:
+                player.movement(-1)
+            else:
+                player.rect.x -= speed
+                player_pos = (player_pos[0] - speed, player_pos[1])
+                camera.update(player)
+                player.move()
 
-    elif motion == 'RIGHT':
-        if player.mov > 0:
-            player.movement(1)
-        else:
-            player.rect.x += 3
-            player_pos = (player_pos[0] + 3, player_pos[1])
-            camera.update(player)
-            player.move()
+        elif motion == 'RIGHT':
+            if player.mov > 0:
+                player.movement(1)
+            else:
+                player.rect.x += speed
+                player_pos = (player_pos[0] + speed, player_pos[1])
+                camera.update(player)
+                player.move()
 
-    elif motion == 'DOWN' and player_pos[1] > 60:
-        player.rect.y += 3
-        player_pos = (player_pos[0], player_pos[1] - 3)
-        if player_pos[1] < 370:
-            pass
-        else:
-            camera.update(player)
-            player.move()
+        elif motion == 'DOWN' and player_pos[1] > 60:
+            player.rect.y += speed
+            player_pos = (player_pos[0], player_pos[1] - speed)
+            if player_pos[1] < 370:
+                pass
+            else:
+                camera.update(player)
+                player.move()
 
-    elif motion == 'UP':
-        player.rect.y -= 3
-        player_pos = (player_pos[0], player_pos[1] + 3)
-        if player_pos[1] < 370:
-            pass
-        else:
-            camera.update(player)
-            player.move()
+        elif motion == 'UP':
+            player.rect.y -= speed
+            player_pos = (player_pos[0], player_pos[1] + speed)
+            if player_pos[1] < 370:
+                pass
+            else:
+                camera.update(player)
+                player.move()
 
-    elif motion == 'RIGHTUP':
-        if player.mov > 0:
-            player.movement(1)
-        else:
-            player.rect.x += 2
-            player.rect.y -= 2
-            player_pos = (player_pos[0] + 2, player_pos[1] + 2)
-            camera.update(player)
-            player.move()
-    elif motion == 'RIGHTDOWN':
-        if player.mov > 0:
-            player.movement(1)
-        else:
-            player.rect.x += 2
-            player.rect.y += 2
-            player_pos = (player_pos[0] + 2, player_pos[1] - 2)
-            camera.update(player)
-            player.move()
-    elif motion == 'LEFTUP':
-        if player.mov < 9:
-            player.movement(-1)
-        else:
-            player.rect.x -= 2
-            player.rect.y -= 2
-            player_pos = (player_pos[0] - 2, player_pos[1] + 2)
-            camera.update(player)
-            player.move()
-    elif motion == 'LEFTDOWN':
-        if player.mov < 9:
-            player.movement(-1)
-        else:
-            player.rect.x -= 2
-            player.rect.y += 2
-            player_pos = (player_pos[0] - 2, player_pos[1] - 2)
-            camera.update(player)
-            player.move()
+        elif motion == 'RIGHTUP':
+            if player.mov > 0:
+                player.movement(1)
+            else:
+                player.rect.x += speed
+                player.rect.y -= speed
+                player_pos = (player_pos[0] + speed, player_pos[1] + speed)
+                camera.update(player)
+                player.move()
+        elif motion == 'RIGHTDOWN':
+            if player.mov > 0:
+                player.movement(1)
+            else:
+                player.rect.x += speed
+                player.rect.y += speed
+                player_pos = (player_pos[0] + speed, player_pos[1] - speed)
+                camera.update(player)
+                player.move()
+        elif motion == 'LEFTUP':
+            if player.mov < 9:
+                player.movement(-1)
+            else:
+                player.rect.x -= speed
+                player.rect.y -= speed
+                player_pos = (player_pos[0] - speed, player_pos[1] + speed)
+                camera.update(player)
+                player.move()
+        elif motion == 'LEFTDOWN':
+            if player.mov < 9:
+                player.movement(-1)
+            else:
+                player.rect.x -= speed
+                player.rect.y += speed
+                player_pos = (player_pos[0] - speed, player_pos[1] - speed)
+                camera.update(player)
+                player.move()
 
-    screen.fill((0, 0, 255))
+        screen.fill((0, 0, 255))
+        screen.blit(fon, (0, 0))
+        screen.blit(monet, (990, 10))
+        font = pygame.font.Font(None, 60)
+        text = font.render(f"{gold}", 1, (0, 0, 0))
+        screen.blit(text, (1000 - len(str(gold)) * 30, 15))
+        pygame.draw.rect(screen, (0, 0, 0), pygame.Rect(320, 50, 400, 20), 1)
+        pygame.draw.rect(screen, (0, 255, 0), pygame.Rect(320, 50, 400 * (player.health / player.maxhealth), 20))
+        pygame.draw.rect(screen, (255, 0, 0), pygame.Rect(320 + 400 * (player.health / player.maxhealth), 50,
+                                                          400 - 400 * (player.health / player.maxhealth) + 5, 20))
+        if player.health == 0:
+            again = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 365), (280, 50)))
+            menu = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 425), (280, 50)))
+            screen.blit(pygame.transform.scale(button, (350, 90)), (360, 350))
+            screen.blit(pygame.transform.scale(button, (350, 90)), (360, 410))
+            text = font.render(f"AGAIN", 1, (0, 0, 0))
+            screen.blit(text, (475, 370))
+            text = font.render(f"MENU", 1, (0, 0, 0))
+            screen.blit(text, (485, 430))
+            dats_write()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    terminate()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        if again.collidepoint(event.pos):
+                            main()
+                        elif menu.collidepoint(event.pos):
+                            start_screen()
+
+        all_sprites.draw(screen)
+        all_sprites.update()
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def start_screen():
+    global gold
+    global file
+    file = open('stat_datas').read()
+    file = file.split('\n')
+    gold = int(file[0])
+    intro_text = ["ЗАСТАВКА", "",
+                  "Правила игры",
+                  "Если в правилах несколько строк,",
+                  "приходится выводить их построчно"]
+
+    fon = pygame.transform.scale(load_image('fon.jpg'), (width, height))
     screen.blit(fon, (0, 0))
-    screen.blit(monet, (990, 10))
-    font = pygame.font.Font(None, 70)
-    text = font.render(f"{gold}", 1, (255, 255, 0))
-    screen.blit(text, (1000 - len(str(gold)) * 30, 10))
-    all_sprites.draw(screen)
-    all_sprites.update()
-    pygame.display.flip()
-    clock.tick(FPS)
+    font = pygame.font.Font(None, 30)
+    text_coord = 50
+    for line in intro_text:
+        string_rendered = font.render(line, 1, pygame.Color('black'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 10
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+
+    font = pygame.font.Font(None, 60)
+    play = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((500, 20), (140, 50)))
+    screen.blit(pygame.transform.scale(load_image('button.png', -1), (175, 90)), (480, 5))
+    text = font.render(f"PLAY", 1, (0, 0, 0))
+    screen.blit(text, (520, 25))
+    upgrades = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((430, 75), (280, 50)))
+    screen.blit(pygame.transform.scale(load_image('button.png', -1), (350, 90)), (390, 60))
+    text = font.render(f"UPGRADES", 1, (0, 0, 0))
+    screen.blit(text, (450, 80))
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.MOUSEBUTTONDOWN and play.collidepoint(event.pos):
+                main()  # начинаем игру
+            elif event.type == pygame.MOUSEBUTTONDOWN and upgrades.collidepoint(event.pos):
+                fon = pygame.transform.scale(load_image('upg_fon.jpg'), (width, height))
+                Sharky(450, 200)
+                while True:
+                    screen.blit(fon, (0, 0))
+                    all_sprites.draw(screen)
+                    all_sprites.update()
+                    speeed = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((88, 514), (255, 50)))
+                    health = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((430, 514), (280, 50)))
+                    back = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((20, 20), (140, 50)))
+                    screen.blit(pygame.transform.scale(button, (350, 90)), (390, 500))
+                    screen.blit(pygame.transform.scale(button, (350, 90)), (50, 500))
+                    screen.blit(pygame.transform.scale(button, (175, 90)), (0, 6))
+                    text = font.render(f"UPGRADES", 1, (0, 0, 0))
+                    screen.blit(text, (450, 80))
+                    text = font.render(f"SPEED", 1, (0, 0, 0))
+                    screen.blit(text, (150, 450))
+                    text = font.render(f"HEALTH", 1, (0, 0, 0))
+                    screen.blit(text, (480, 450))
+                    text = font.render(f"BACK", 1, (0, 0, 0))
+                    screen.blit(text, (30, 30))
+                    if player.speedlevel == 5:
+                        text = font.render(f"MAX", 1, (0, 0, 0))
+                    else:
+                        text = font.render(f"{speedups[player.speedlevel]}", 1, (0, 0, 0))
+                        screen.blit(monet, (260, 515))
+                    screen.blit(text, (170, 519))
+                    if player.maxhealth == 60000:
+                        text = font.render(f"MAX", 1, (0, 0, 0))
+                    else:
+                        text = font.render(f"{healthups[int(player.maxhealth / 10000) - 1]}", 1, (0, 0, 0))
+                        screen.blit(monet, (600, 515))
+                    screen.blit(text, (510, 519))
+                    screen.blit(monet, (980, 10))
+                    font = pygame.font.Font(None, 60)
+                    text = font.render(f"{gold}", 1, (0, 0, 0))
+                    screen.blit(text, (1000 - len(str(gold)) * 30, 15))
+
+                    pygame.display.flip()
+                    clock.tick(FPS)
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            dats_write()
+                            terminate()
+                        if event.type == pygame.MOUSEBUTTONDOWN:
+                            if event.button == 1:
+                                if speeed.collidepoint(event.pos):
+                                    if player.speedlevel == 5:
+                                        pass
+                                    else:
+                                        gold -= speedups[player.speedlevel]
+                                        player.speedlevel += 1
+                                elif back.collidepoint(event.pos):
+                                    dats_write()
+                                    start_screen()
+
+                                elif health.collidepoint(event.pos):
+                                    if player.maxhealth == 60000:
+                                        pass
+                                    else:
+                                        gold -= healthups[int(player.maxhealth / 10000) - 1]
+                                        player.maxhealth += 10000
+
+        pygame.display.flip()
+
+
+camera = Camera()
+file = open('stat_datas').read()
+file = file.split('\n')
+start_screen()
+
+if __name__ == '__main__':
+    main()
