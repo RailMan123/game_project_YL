@@ -3,26 +3,27 @@ import os
 import random
 import sys
 
+# Инициализация
 pygame.init()
 size = width, height = 1050, 750
 screen = pygame.display.set_mode(size, pygame.RESIZABLE)
 screen.fill((0, 0, 255))
-clock = pygame.time.Clock()
 all_sprites = pygame.sprite.Group()
 fishes = pygame.sprite.Group()
 plants = pygame.sprite.Group()
+clock = pygame.time.Clock()
 speedups = [20, 30, 40, 60, 80, 100]
 healthups = [20, 40, 60, 80, 100]
 FPS = 100
 player = 0
 player_pos = (0, 0)
 
-
+# Выход из игры
 def terminate():
     pygame.quit()
     sys.exit()
-
-
+    
+# Запись показателей во внешний файл
 def dats_write():
     global file
     file = open('stat_datas', 'w')
@@ -33,7 +34,7 @@ def dats_write():
     for sprite in all_sprites:
         sprite.kill()
 
-
+# Загрузка изображений
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     image = pygame.image.load(fullname).convert()
@@ -50,10 +51,10 @@ button = load_image('button.png', -1)
 monet = load_image('monet.png', -1)
 monet = pygame.transform.scale(monet, (50, 50))
 fon = pygame.transform.scale(load_image('background.jpg'), (width, height))
-screen.blit(fon, (0, 0))
 above_fon = pygame.transform.scale(load_image('aboveground.jpg'), (width, height))
+screen.blit(fon, (0, 0))
 
-
+# Обработка спрайт-листов
 def cut_sheet(self, sheet, columns, rows, frames):
     self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
                             sheet.get_height() // rows)
@@ -63,18 +64,20 @@ def cut_sheet(self, sheet, columns, rows, frames):
             frames.append(sheet.subsurface(pygame.Rect(
                 frame_location, self.rect.size)))
 
-
+# Класс игрока
 class Sharky(pygame.sprite.Sprite):
     def __init__(self, x, y):
         global player
         global player_pos
         super().__init__(all_sprites)
-        self.swimframes = []
-        self.moveframes = []
-        self.eatframes = []
         file = open('stat_datas').read()
         file = file.split('\n')
         self.speedlevel = int(file[1])
+        self.health = int(file[2]) * 10000
+        self.maxhealth = int(file[2]) * 10000
+        self.swimframes = []
+        self.moveframes = []
+        self.eatframes = []
         for i in range(1, 6):
             sheet = load_image(f'bluesharkswim(' + str(i) + ').png', colorkey=-1)
             self.swimframes.append(sheet.subsurface(pygame.Rect(
@@ -86,13 +89,11 @@ class Sharky(pygame.sprite.Sprite):
         cut_sheet(self, load_image('bluesharkeat.png', colorkey=-1), 2, 1, self.eatframes)
         self.cur_frame = 0
         self.image = self.swimframes[self.cur_frame]
-        self.rect = self.rect.move(x, y)
-        self.health = int(file[2]) * 10000
-        self.maxhealth = int(file[2]) * 10000
-        player = self
-        self.count = 0
         self.mask = pygame.mask.from_surface(self.image)
+        self.rect = self.rect.move(x, y)
+        self.count = 0
         self.mov = 0
+        player = self
         player_pos = (player.rect.x + player.rect.w // 2, player.rect.y + player.rect.h // 2)
 
     def update(self):
@@ -118,13 +119,12 @@ class Sharky(pygame.sprite.Sprite):
         for sprite in all_sprites:
             camera.apply(sprite)
 
-
+# Класс рыб
 class Fish(pygame.sprite.Sprite):
     def __init__(self, x, y, type):
         super().__init__(all_sprites)
         self.add(fishes)
         self.swimframes = []
-        self.y = player_pos[1] + (480 - y)
         if type == 'yellowfish':
             self.type = 'yellow'
             cut_sheet(self, load_image('yellowfishswim.png', colorkey=-1), 6, 1, self.swimframes)
@@ -134,12 +134,13 @@ class Fish(pygame.sprite.Sprite):
         elif type == 'tuna':
             self.type = 'tuna'
             cut_sheet(self, load_image('tuna_sprite.png', colorkey=-1), 8, 1, self.swimframes)
-
+            
+        self.y = player_pos[1] + (480 - y)
         self.swimstyle = [random.choice([0.75, 1, 1.25, 1.5, 0.5, -0.75, -1, -1.25, -1.5, -0.5]), 0]
         self.cur_frame = 0
+        self.count = 0
         self.image = self.swimframes[self.cur_frame]
         self.rect = self.rect.move(x, y)
-        self.count = 0
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self):
@@ -166,7 +167,7 @@ class Fish(pygame.sprite.Sprite):
                 player.health += 1500
                 gold += 2
             elif self.type == 'tuna':
-                player.health += 4000
+                player.health += 3000
                 gold += 6
             self.kill()
 
@@ -194,6 +195,7 @@ class Fish(pygame.sprite.Sprite):
 
         if S >= 500 and self.swimstyle[1] != 0:
             self.swimstyle = [random.choice([0.75, 1, 1.25, 1.5, 0.5, -0.75, -1, -1.25, -1.5, -0.5]), 0]
+            
         if S + player_pos[1] > 950 or player_pos[1] - S < 40:
             self.rect.x += self.swimstyle[0]
         else:
@@ -201,7 +203,7 @@ class Fish(pygame.sprite.Sprite):
             self.y += self.swimstyle[1]
             self.rect.y += self.swimstyle[1]
 
-
+# Класс водорослей
 class Plant(pygame.sprite.Sprite):
     def __init__(self, x, y, type):
         super().__init__(all_sprites)
@@ -215,7 +217,7 @@ class Plant(pygame.sprite.Sprite):
     def update(self):
         pass
 
-
+# Камера
 class Camera:
     # зададим начальный сдвиг камеры
     def __init__(self):
@@ -236,7 +238,7 @@ class Camera:
             self.dx = -(target.rect.x + target.rect.w // 2 - width // 2)
             self.dy = -(target.rect.y + target.rect.h // 2 - height // 2)
 
-
+# Основоной цикл
 def main():
     global player_pos
     global gold
@@ -260,6 +262,7 @@ def main():
                 dats_write()
                 running = False
                 terminate()
+            # Управление
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
                     if motion == 'UP':
@@ -421,6 +424,7 @@ def main():
                 player.move()
 
         screen.fill((0, 0, 255))
+        # Смещающийся фон
         if player_pos[1] + 320 > 1000:
             screen.blit(above_fon, ((minmax[1]) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
             screen.blit(above_fon, ((minmax[1] + 1000) - player_pos[0] + 560, -650 - (1000 - player_pos[1] - 320)))
@@ -471,6 +475,8 @@ def main():
                 Fish(random.randint(player_pos[0] + 600, player_pos[0] + 700), random.randint(50, 700),
                      random.choice(['yellowfish', 'goldfish', 'tuna']))
             schet = 0
+            
+        # Конец игры
         if player.health == 0:
             again = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 365), (280, 50)))
             menu = pygame.draw.rect(screen, (168, 168, 168), pygame.Rect((400, 425), (280, 50)))
@@ -496,7 +502,7 @@ def main():
         pygame.display.flip()
         clock.tick(FPS)
 
-
+# Начальная заставка
 def start_screen():
     global gold
     global file
@@ -505,8 +511,8 @@ def start_screen():
     gold = int(file[0])
     intro_text = ["ЗАСТАВКА", "",
                   "Правила игры",
-                  "Если в правилах несколько строк,",
-                  "приходится выводить их построчно"]
+                  "Ешьте рыб и зарабатывайте монеты,",
+                  "Пока голод не одолеет вас!"]
 
     fon = pygame.transform.scale(load_image('fon.jpg'), (width, height))
     screen.blit(fon, (0, 0))
@@ -537,6 +543,7 @@ def start_screen():
                 terminate()
             elif event.type == pygame.MOUSEBUTTONDOWN and play.collidepoint(event.pos):
                 main()  # начинаем игру
+            # Меню улучшений
             elif event.type == pygame.MOUSEBUTTONDOWN and upgrades.collidepoint(event.pos):
                 fon = pygame.transform.scale(load_image('upg_fon.jpg'), (width, height))
                 Sharky(450, 200)
@@ -587,8 +594,9 @@ def start_screen():
                                     if player.speedlevel == 5:
                                         pass
                                     else:
-                                        gold -= speedups[player.speedlevel]
-                                        player.speedlevel += 1
+                                        if gold >= speedups[player.speedlevel]:
+                                            gold -= speedups[player.speedlevel]
+                                            player.speedlevel += 1
                                 elif back.collidepoint(event.pos):
                                     dats_write()
                                     start_screen()
@@ -597,8 +605,9 @@ def start_screen():
                                     if player.maxhealth == 60000:
                                         pass
                                     else:
-                                        gold -= healthups[int(player.maxhealth / 10000) - 1]
-                                        player.maxhealth += 10000
+                                        if gold >= healthups[int(player.maxhealth / 10000) - 1]
+                                            gold -= healthups[int(player.maxhealth / 10000) - 1]
+                                            player.maxhealth += 10000
 
         pygame.display.flip()
 
